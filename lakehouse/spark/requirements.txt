@@ -1,0 +1,4 @@
+# Python libraries installed into the Spark image (see spark/Dockerfile)
+pandas==2.2.3
+pypdf==6.19.0
+openpyxl==3.1.5

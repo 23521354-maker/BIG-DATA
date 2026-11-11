@@ -1,0 +1,37 @@
+import json
+FI = "financial_indicators"
+G = [
+("Lợi nhuận sau thuế của VCB năm 2024 là bao nhiêu?", f"SELECT value_bn_vnd FROM {FI} WHERE ticker='VCB' AND fiscal_year=2024 AND metric='net_profit_after_tax'"),
+("Tổng tài sản của MBB qua các năm", f"SELECT fiscal_year, value_bn_vnd FROM {FI} WHERE ticker='MBB' AND metric='total_assets' ORDER BY fiscal_year"),
+("Top 5 công ty có lợi nhuận sau thuế cao nhất năm 2024", f"SELECT ticker, value_bn_vnd FROM {FI} WHERE metric='net_profit_after_tax' AND fiscal_year=2024 ORDER BY value_bn_vnd DESC LIMIT 5"),
+("So sánh doanh thu thuần của VNM và MWG năm 2023", f"SELECT ticker, value_bn_vnd FROM {FI} WHERE ticker IN ('VNM','MWG') AND fiscal_year=2023 AND metric='net_revenue'"),
+("ROE của các ngân hàng năm 2024 xếp từ cao xuống thấp", f"SELECT f.ticker, f.value FROM {FI} f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roe' AND f.fiscal_year=2024 ORDER BY f.value DESC"),
+("Tổng lợi nhuận sau thuế của nhóm ngân hàng theo từng năm", f"SELECT f.fiscal_year, SUM(f.value_bn_vnd) FROM {FI} f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='net_profit_after_tax' GROUP BY f.fiscal_year ORDER BY f.fiscal_year"),
+("Tăng trưởng lợi nhuận sau thuế của FPT năm 2024 so với 2023 là bao nhiêu phần trăm?", f"SELECT (a.value_bn_vnd/b.value_bn_vnd-1)*100 FROM {FI} a JOIN {FI} b ON a.ticker=b.ticker AND a.metric=b.metric WHERE a.ticker='FPT' AND a.metric='net_profit_after_tax' AND a.fiscal_year=2024 AND b.fiscal_year=2023"),
+("Những mã nào có thu nhập lãi thuần năm 2023 trên 30.000 tỷ đồng?", f"SELECT ticker, value_bn_vnd FROM {FI} WHERE metric='net_interest_income' AND fiscal_year=2023 AND value_bn_vnd>30000"),
+("Vốn chủ sở hữu của HPG năm 2022", f"SELECT value_bn_vnd FROM {FI} WHERE ticker='HPG' AND fiscal_year=2022 AND metric='equity'"),
+("Có bao nhiêu bản ghi cần xem lại (needs_review) theo từng chỉ tiêu?", f"SELECT metric, COUNT(*) FROM {FI} WHERE needs_review GROUP BY metric"),
+("Ngân hàng nào có tổng tài sản lớn nhất năm 2025?", f"SELECT f.ticker FROM {FI} f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='total_assets' AND f.fiscal_year=2025 ORDER BY f.value_bn_vnd DESC LIMIT 1"),
+("Doanh thu thuần trung bình của nhóm ngành Consumer năm 2024", f"SELECT AVG(f.value_bn_vnd) FROM {FI} f JOIN companies c USING(ticker) WHERE c.sector='Consumer' AND f.metric='net_revenue' AND f.fiscal_year=2024"),
+("Liệt kê các mã thuộc ngành Real estate", "SELECT ticker FROM companies WHERE sector='Real estate'"),
+("ROA của VIC năm 2022", f"SELECT value FROM {FI} WHERE ticker='VIC' AND fiscal_year=2022 AND metric='roa'"),
+("Công ty phi ngân hàng nào có ROE trên 20% năm 2023?", f"SELECT f.ticker, f.value FROM {FI} f JOIN companies c USING(ticker) WHERE NOT c.is_bank AND f.metric='roe' AND f.fiscal_year=2023 AND f.value>20"),
+("Số lượng nhân viên của FPT năm 2020", f"SELECT value FROM {FI} WHERE ticker='FPT' AND fiscal_year=2020 AND metric='employees'"),
+("Chỉ tiêu nào có độ tin cậy trung bình thấp nhất?", f"SELECT metric FROM {FI} GROUP BY metric ORDER BY AVG(confidence) ASC LIMIT 1"),
+("Số bản ghi lấy từ CafeF theo từng năm", f"SELECT fiscal_year, COUNT(*) FROM {FI} WHERE source='cafef' GROUP BY fiscal_year ORDER BY fiscal_year"),
+("Tỷ lệ nợ xấu của VPB các năm", f"SELECT fiscal_year, value FROM {FI} WHERE ticker='VPB' AND metric='npl_ratio' ORDER BY fiscal_year"),
+("Tìm các đoạn trong báo cáo năm 2024 của VNM có nhắc đến cổ tức", "SELECT chunk_id FROM text_chunks WHERE ticker='VNM' AND fiscal_year=2024 AND text ILIKE '%cổ tức%'"),
+("Mỗi công ty có dữ liệu lợi nhuận sau thuế cho bao nhiêu năm?", f"SELECT ticker, COUNT(DISTINCT fiscal_year) FROM {FI} WHERE metric='net_profit_after_tax' GROUP BY ticker"),
+("Lợi nhuận sau thuế của ACB, TCB và VPB năm 2023", f"SELECT ticker, value_bn_vnd FROM {FI} WHERE ticker IN ('ACB','TCB','VPB') AND fiscal_year=2023 AND metric='net_profit_after_tax'"),
+("Tổng tài sản của các ngân hàng năm 2025 tính bằng nghìn tỷ đồng", f"SELECT f.ticker, f.value_bn_vnd/1000 FROM {FI} f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='total_assets' AND f.fiscal_year=2025"),
+("Năm nào PLX có doanh thu thuần cao nhất?", f"SELECT fiscal_year FROM {FI} WHERE ticker='PLX' AND metric='net_revenue' ORDER BY value_bn_vnd DESC LIMIT 1"),
+("Công ty nào có lợi nhuận sau thuế giảm liên tiếp trong 2023 và 2024?", f"SELECT a.ticker FROM {FI} a JOIN {FI} b ON a.ticker=b.ticker AND b.metric=a.metric AND b.fiscal_year=a.fiscal_year-1 JOIN {FI} c ON c.ticker=a.ticker AND c.metric=a.metric AND c.fiscal_year=a.fiscal_year-2 WHERE a.metric='net_profit_after_tax' AND a.fiscal_year=2024 AND a.value_bn_vnd<b.value_bn_vnd AND b.value_bn_vnd<c.value_bn_vnd"),
+("What was Vinamilk's equity in 2024?", f"SELECT f.value_bn_vnd FROM {FI} f JOIN companies c USING(ticker) WHERE c.company_name ILIKE '%Vinamilk%' AND f.fiscal_year=2024 AND f.metric='equity'"),
+("Biên lợi nhuận ròng (lợi nhuận sau thuế / doanh thu thuần) của HPG năm 2024 là bao nhiêu phần trăm?", f"SELECT n.value_bn_vnd/r.value_bn_vnd*100 FROM {FI} n JOIN {FI} r ON n.ticker=r.ticker AND n.fiscal_year=r.fiscal_year WHERE n.ticker='HPG' AND n.fiscal_year=2024 AND n.metric='net_profit_after_tax' AND r.metric='net_revenue'"),
+("Top 3 ngành theo tổng lợi nhuận sau thuế năm 2024", f"SELECT c.sector, SUM(f.value_bn_vnd) s FROM {FI} f JOIN companies c USING(ticker) WHERE f.metric='net_profit_after_tax' AND f.fiscal_year=2024 GROUP BY c.sector ORDER BY s DESC LIMIT 3"),
+("Chỉ liệt kê các giá trị tổng tài sản đáng tin cậy (không cần xem lại) của VCB", f"SELECT fiscal_year, value_bn_vnd FROM {FI} WHERE ticker='VCB' AND metric='total_assets' AND NOT needs_review ORDER BY fiscal_year"),
+("Doanh thu thuần của FPT năm 2023", f"SELECT value_bn_vnd FROM {FI} WHERE ticker='FPT' AND fiscal_year=2023 AND metric='net_revenue'"),
+("Top 3 ngân hàng có thu nhập lãi thuần cao nhất năm 2024", f"SELECT f.ticker, f.value_bn_vnd FROM {FI} f WHERE f.metric='net_interest_income' AND f.fiscal_year=2024 ORDER BY f.value_bn_vnd DESC LIMIT 3"),
+]
+json.dump([{"id": i + 1, "q": q, "sql": s} for i, (q, s) in enumerate(G)], open("golden.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(len(G))

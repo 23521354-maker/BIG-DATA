@@ -1,0 +1,7 @@
+# Only needed to REPRODUCE the PDF -> extract/ step (offline, takes hours). Not needed to run the lakehouse.
+# Also install the Tesseract OCR binary with the Vietnamese language pack (used by scan_tess.py).
+pymupdf==1.28.2
+remotezip==0.12.6
+# OCR engine for ppocr_batch.py (versions not pinned: this part is the least reproducible)
+paddlepaddle
+paddleocr

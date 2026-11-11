@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iceberg-rest
+  namespace: lakehouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iceberg-rest
+  template:
+    metadata:
+      labels:
+        app: iceberg-rest
+    spec:
+      containers:
+        - name: iceberg-rest
+          image: lakehouse/iceberg-rest-mysql:1.6.0
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8181
+          env:
+            - name: CATALOG_CATALOG__IMPL
+              value: org.apache.iceberg.jdbc.JdbcCatalog
+            - name: CATALOG_URI
+              value: jdbc:mysql://mysql:3306/iceberg
+            - name: CATALOG_JDBC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+            - name: CATALOG_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+            - name: CATALOG_WAREHOUSE
+              value: s3://warehouse/
+            - name: CATALOG_IO__IMPL
+              value: org.apache.iceberg.aws.s3.S3FileIO
+            - name: CATALOG_S3_ENDPOINT
+              value: http://minio:9000
+            - name: CATALOG_S3_PATH__STYLE__ACCESS
+              value: "true"
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /v1/config
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iceberg-rest
+  namespace: lakehouse
+spec:
+  selector:
+    app: iceberg-rest
+  ports:
+    - name: http
+      port: 8181
+      targetPort: http

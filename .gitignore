@@ -1,0 +1,31 @@
+# ---- Data is NOT in git (shared as data packs, see DATA.md) ----
+extract/
+delta/
+pdf/
+dashboard/
+ocr_batch/
+tess_scan/
+inventory_cache.jsonl
+# re-downloaded automatically by download_vn30.py from Zenodo
+file_index_full.csv
+checksums_pdf_sha256.csv
+
+# ---- local scratch / secrets ----
+to delete/
+.env
+*.env
+.venv*/
+.cache-ocr/
+__pycache__/
+*.pyc
+*.bak
+_tmp.png
+.vscode/
+.idea/
+Thumbs.db
+
+# ---- local Spark test output ----
+vn30out/
+spark-warehouse/
+metastore_db/
+derby.log

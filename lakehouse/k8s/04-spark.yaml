@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-config
+  namespace: lakehouse
+data:
+  spark-defaults.conf: |
+    spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.defaultCatalog=lakehouse
+    spark.sql.catalog.lakehouse=org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.lakehouse.type=rest
+    spark.sql.catalog.lakehouse.uri=http://iceberg-rest:8181
+    spark.sql.catalog.lakehouse.warehouse=s3://warehouse/
+    spark.sql.catalog.lakehouse.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.catalog.lakehouse.s3.endpoint=http://minio:9000
+    spark.sql.catalog.lakehouse.s3.path-style-access=true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+  namespace: lakehouse
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: spark
+      role: master
+  template:
+    metadata:
+      labels:
+        app: spark
+        role: master
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: spark-master
+          image: lakehouse/spark-iceberg:1.0   # built from spark/Dockerfile
+          imagePullPolicy: Never
+          command: ["/opt/spark/bin/spark-class"]
+          args: ["org.apache.spark.deploy.master.Master"]
+          env:
+            - name: SPARK_NO_DAEMONIZE
+              value: "true"
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          ports:
+            - name: cluster
+              containerPort: 7077
+            - name: ui
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+      volumes:
+        - name: config
+          configMap:
+            name: spark-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+  namespace: lakehouse
+spec:
+  selector:
+    app: spark
+    role: master
+  ports:
+    - name: cluster
+      port: 7077
+      targetPort: cluster
+    - name: ui
+      port: 8080
+      targetPort: ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+  namespace: lakehouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: spark
+        role: worker
+    spec:
+      enableServiceLinks: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: spark
+              role: worker
+      containers:
+        - name: spark-worker
+          image: lakehouse/spark-iceberg:1.0   # built from spark/Dockerfile
+          imagePullPolicy: Never
+          command: ["/opt/spark/bin/spark-class"]
+          args: ["org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+          env:
+            - name: SPARK_WORKER_CORES
+              value: "1"
+            - name: SPARK_WORKER_MEMORY
+              value: 768m
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+      volumes:
+        - name: config
+          configMap:
+            name: spark-config

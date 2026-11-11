@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: lakehouse
+data:
+  coordinator.properties: |
+    coordinator=true
+    node-scheduler.include-coordinator=false
+    http-server.http.port=8080
+    discovery.uri=http://trino:8080
+  worker.properties: |
+    coordinator=false
+    http-server.http.port=8080
+    discovery.uri=http://trino:8080
+  node.properties: |
+    node.environment=lakehouse
+    node.id=${ENV:HOSTNAME}
+    node.data-dir=/data/trino
+  iceberg.properties: |
+    connector.name=iceberg
+    iceberg.catalog.type=rest
+    iceberg.rest-catalog.uri=http://iceberg-rest:8181
+    iceberg.rest-catalog.warehouse=s3://warehouse/
+    fs.native-s3.enabled=true
+    s3.endpoint=http://minio:9000
+    s3.region=us-east-1
+    s3.path-style-access=true
+    s3.aws-access-key=admin
+    s3.aws-secret-key=password123
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-coordinator
+  namespace: lakehouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino
+      role: coordinator
+  template:
+    metadata:
+      labels:
+        app: trino
+        role: coordinator
+    spec:
+      containers:
+        - name: trino
+          image: trinodb/trino:475
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /v1/info
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 768Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/config.properties
+              subPath: coordinator.properties
+            - name: config
+              mountPath: /etc/trino/node.properties
+              subPath: node.properties
+            - name: config
+              mountPath: /etc/trino/catalog/iceberg.properties
+              subPath: iceberg.properties
+            - name: data
+              mountPath: /data/trino
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino
+  namespace: lakehouse
+spec:
+  selector:
+    app: trino
+    role: coordinator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-worker
+  namespace: lakehouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: trino
+        role: worker
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: trino
+              role: worker
+      containers:
+        - name: trino
+          image: trinodb/trino:475
+          readinessProbe:
+            httpGet:
+              path: /v1/info
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/config.properties
+              subPath: worker.properties
+            - name: config
+              mountPath: /etc/trino/node.properties
+              subPath: node.properties
+            - name: config
+              mountPath: /etc/trino/catalog/iceberg.properties
+              subPath: iceberg.properties
+            - name: data
+              mountPath: /data/trino
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+        - name: data
+          emptyDir: {}

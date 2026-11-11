@@ -1,0 +1,10 @@
+# Python dependencies for: Text-to-SQL (text2sql/), the Delta reference pipeline (reference files in the repo root)
+# and the local Spark test (lakehouse/tests/run_local_test.sh). Versions are the ones the project was tested with.
+# pyspark 3.5.x needs Java 11 or 17 on PATH.
+pyspark==3.5.5
+deltalake==1.6.6
+duckdb==1.5.6
+pandas==2.3.3
+pyarrow==25.0.1
+streamlit==1.65.0
+trino==0.340.0
