@@ -1,5 +1,5 @@
 """Data-quality gate for the VN30 pipeline: row counts of every Bronze/Silver/Gold table must equal the counts
-of the single-machine baseline (Delta Lake build, verified cell by cell by tests/parity_silver.py), plus one
+of the expected baseline (fixed when the Spark output was verified against an earlier single-machine prototype), plus one
 spot-check value. Exits with code 1 on any mismatch, so the Airflow task (and the DAG run) fails.
 Set VN30_LOCAL_OUT to read parquet instead of Iceberg (local tests without a cluster)."""
 import os

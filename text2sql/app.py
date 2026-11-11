@@ -2,10 +2,8 @@ from decimal import Decimal
 """VN30 Text-to-SQL UI.   Run:  streamlit run app.py     (API key can be typed in the sidebar; it is never written to disk)"""
 import os, sys, json, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import duckdb
 import pandas as pd
 import streamlit as st
-from deltalake import DeltaTable
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import t2s, grade
@@ -22,24 +20,17 @@ EXAMPLES = [
 ]
 
 # ---------- cached resources ----------
-@st.cache_resource(show_spinner="Loading Delta tables…")
-def get_tables():
-    return {t: DeltaTable(os.path.join(t2s.DELTA, t)).to_pyarrow_table() for t in t2s.TABLES}
-
-def new_duck():
-    """fresh read-only DuckDB connection (zero-copy over the cached Arrow tables); one per thread/request"""
-    con = duckdb.connect()
-    for t, tb in get_tables().items(): con.register(t, tb)
-    con.execute("SET enable_external_access=false")
-    return con
-
-def new_con(engine="duckdb"):
-    """connection of the selected query engine: DuckDB over local Delta files, or Trino over the lakehouse (Iceberg on MinIO)"""
-    return t2s.connect_trino() if engine == "trino" else new_duck()
+def new_con():
+    """one Trino connection per thread/request: queries run on the lakehouse (Iceberg tables on MinIO)"""
+    return t2s.connect()
 
 @st.cache_resource(show_spinner=False)
-def get_system(engine="duckdb"):
-    return t2s.system_prompt(new_con(engine))
+def get_system():
+    return t2s.system_prompt(new_con())
+
+def q_df(sql):
+    r = new_con().execute(sql)
+    return pd.DataFrame(r.fetchall(), columns=[d[0] for d in r.description])
 
 # ---------- helpers ----------
 def norm(rows):
@@ -55,15 +46,14 @@ def lenient(pred, gold):
         else: return False
     return True
 
-def run_item(g, backend, model, sysmsg, engine="duckdb"):
-    cur = new_con(engine)                    # one connection per thread (predicted SQL runs on the selected engine)
-    ref = new_duck()                         # gold answers always come from the DuckDB reference (same data, verified by the parity test)
+def run_item(g, backend, model, sysmsg):
+    cur = new_con()                          # one connection per thread; gold answers are frozen in the question file (field "gold")
     t0 = time.time()
     if g["sql"] is None:                     # unanswerable / unsafe → pass if declined, blocked or empty
         r = t2s.ask(g["q"], cur, backend, model, system=sysmsg)
         ok = (r["error"] is not None and any(k in r["error"] for k in ("declined", "only SELECT", "forbidden"))) or (r["error"] is None and len(r["rows"]) == 0)
         return dict(id=g["id"], q=g["q"], kind="unanswerable", ok=ok, lenient_ok=ok, executed=r["error"] is None, error=r["error"], sql=r["sql"], gold_sql=None, pred_rows=len(r["rows"]), gold_rows=0, attempts=r["attempts"], sec=round(time.time() - t0, 1))
-    gold = ref.execute(g["sql"]).fetchall()
+    gold = g["gold"]
     r = t2s.ask(g["q"], cur, backend, model, system=sysmsg)
     ok = r["error"] is None and grade.strict(r["rows"], gold)
     lk = r["error"] is None and (ok or grade.lenient(r["rows"], gold))
@@ -96,12 +86,16 @@ if backend == "openai":
     os.environ["OPENAI_BASE_URL"] = base
     if key: os.environ["OPENAI_API_KEY"] = key
     if not os.environ.get("OPENAI_API_KEY"): st.sidebar.warning("No API key set — type it above or set OPENAI_API_KEY.")
-engine = "trino" if st.sidebar.selectbox("Query engine", ["DuckDB (local Delta files)", "Trino (lakehouse on MinIO)"], help="Trino needs the cluster running and `kubectl port-forward` on port 8080 (scripts\\ops\\port-forward.ps1 trino).").startswith("Trino") else "duckdb"
+st.sidebar.caption("Query engine: Trino (lakehouse on MinIO). Needs the cluster running and `lakehouse\\scripts\\ops\\port-forward.ps1 trino`.")
 workers = st.sidebar.slider("Parallel requests (Evaluate tab)", 1, 16, 6)
 st.sidebar.caption("The key lives only in this process' memory; it is never saved to disk.")
 
-get_tables()
-sysmsg = None if backend == "rules" else get_system(engine)
+try:
+    new_con().execute("SELECT 1").fetchall()
+except Exception as e:
+    st.error(f"Cannot reach Trino ({type(e).__name__}). Start the cluster (lakehouse\\scripts\\ops\\mode-full.ps1), run lakehouse\\scripts\\ops\\port-forward.ps1 trino in another window, then reload this page.")
+    st.stop()
+sysmsg = None if backend == "rules" else get_system()
 
 st.title("📊 VN30 Annual-Report Financial Indicators — Text-to-SQL")
 tab_ask, tab_eval, tab_data = st.tabs(["💬 Ask", "🧪 Evaluate", "🗂️ Data coverage"])
@@ -110,7 +104,7 @@ tab_ask, tab_eval, tab_data = st.tabs(["💬 Ask", "🧪 Evaluate", "🗂️ Dat
 with tab_ask:
     if "q" not in st.session_state: st.session_state.q = ""
     if "hist" not in st.session_state: st.session_state.hist = []
-    st.caption("Ask in Vietnamese or English. The model writes a read-only SQL query; the result is computed from the Delta tables, not by the model.")
+    st.caption("Ask in Vietnamese or English. The model writes a read-only SQL query; the result is computed by Trino from the lakehouse tables, not by the model.")
     cols = st.columns(3)
     for i, ex in enumerate(EXAMPLES):
         if cols[i % 3].button(ex, key=f"ex{i}", width="stretch"): st.session_state.q = ex
@@ -119,7 +113,7 @@ with tab_ask:
     if st.button("Ask", type="primary") and q.strip():
         t0 = time.time()
         with st.spinner("Thinking…"):
-            r = t2s.ask(q.strip(), new_con(engine), backend, model, system=sysmsg)
+            r = t2s.ask(q.strip(), new_con(), backend, model, system=sysmsg)
         r["sec"] = round(time.time() - t0, 1); st.session_state.hist.insert(0, r)
     for n, r in enumerate(st.session_state.hist[:5]):
         with st.container(border=True):
@@ -143,7 +137,7 @@ with tab_eval:
         G = json.load(open(os.path.join(t2s.HERE, gset), encoding="utf-8")); res = {}
         bar = st.progress(0.0, text="Starting…"); live = st.empty(); t0 = time.time()
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs = {ex.submit(run_item, g, backend, model, sysmsg, engine): g for g in G}
+            futs = {ex.submit(run_item, g, backend, model, sysmsg): g for g in G}
             for f in as_completed(futs):
                 g = futs[f]
                 try: x = f.result()
@@ -151,7 +145,7 @@ with tab_eval:
                 res[x["id"]] = x; bar.progress(len(res) / len(G), text=f"{len(res)}/{len(G)} done · {time.time() - t0:.0f}s")
                 live.dataframe(pd.DataFrame(sorted(res.values(), key=lambda z: z["id"]))[["id", "q", "ok", "lenient_ok", "executed", "sec"]], width="stretch", hide_index=True)
         out = sorted(res.values(), key=lambda z: z["id"]); st.session_state.last_eval = (gset, backend, model, out, time.time() - t0)
-        fn = os.path.join(t2s.HERE, f"eval_{os.path.splitext(gset)[0]}_{backend}_{model.replace(':', '-').replace('/', '-')}{'_trino' if engine == 'trino' else ''}.json")
+        fn = os.path.join(t2s.HERE, f"eval_{os.path.splitext(gset)[0]}_{backend}_{model.replace(':', '-').replace('/', '-')}_trino.json")
         json.dump(out, open(fn, "w", encoding="utf-8"), ensure_ascii=False, indent=1); bar.empty(); live.empty()
     if "last_eval" in st.session_state:
         gset, be, mo, out, secs = st.session_state.last_eval; n = len(out)
@@ -172,10 +166,9 @@ with tab_eval:
 
 # ---------- Data coverage ----------
 with tab_data:
-    cur = new_duck()
     st.caption("How many metrics each (ticker, year) has in `financial_indicators`, and how many text chunks in `text_chunks`. Zeros are real gaps.")
-    a = cur.execute("SELECT ticker, fiscal_year, COUNT(DISTINCT metric) n FROM financial_indicators GROUP BY 1,2").df().pivot(index="ticker", columns="fiscal_year", values="n").fillna(0).astype(int)
-    b = cur.execute("SELECT ticker, fiscal_year, COUNT(*) n FROM text_chunks GROUP BY 1,2").df().pivot(index="ticker", columns="fiscal_year", values="n").reindex(a.index).fillna(0).astype(int)
+    a = q_df("SELECT ticker, fiscal_year, COUNT(DISTINCT metric) n FROM financial_indicators GROUP BY 1,2").pivot(index="ticker", columns="fiscal_year", values="n").fillna(0).astype(int)
+    b = q_df("SELECT ticker, fiscal_year, COUNT(*) n FROM text_chunks GROUP BY 1,2").pivot(index="ticker", columns="fiscal_year", values="n").reindex(a.index).fillna(0).astype(int)
     c1, c2 = st.columns(2)
     c1.markdown("**Distinct metrics per (ticker, year)**"); c1.dataframe(a, width="stretch")
     c2.markdown("**Text chunks per (ticker, year)**"); c2.dataframe(b, width="stretch")

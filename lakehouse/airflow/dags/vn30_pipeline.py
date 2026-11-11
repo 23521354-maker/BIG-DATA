@@ -3,7 +3,7 @@
   1. vn30_bronze   Spark: s3a://raw/vn30/extract/* -> vn30_bronze.pages_raw / extracted_raw / cafef_raw
   2. vn30_silver   Spark: CafeF cross-check (per ticker), ROE/ROA, text chunks, dimensions -> vn30_silver.*
   3. vn30_gold     Spark SQL: company_year_metrics, data_quality_by_ticker -> vn30_gold.*
-  4. vn30_check    Spark: row counts must equal the single-machine baseline, otherwise the run fails
+  4. vn30_check    Spark: row counts must equal the expected baseline, otherwise the run fails
   5. verify_with_trino  Trino: row counts of every table (proves the tables are queryable through Trino)
 
 Trigger by hand (Airflow UI -> vn30_pipeline -> Trigger). Each step runs as its own Kubernetes pod.

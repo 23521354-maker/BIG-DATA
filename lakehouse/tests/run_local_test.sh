@@ -4,7 +4,7 @@
 #
 #   bash lakehouse/tests/run_local_test.sh <data_root>
 #
-# <data_root> is the folder that contains extract/ (and delta/, which enables the parity check).
+# <data_root> is the folder that contains extract/.
 set -euo pipefail
 DATA="${1:?usage: run_local_test.sh <data_root>}"
 DATA="$(cd "$DATA" && pwd)"
@@ -24,10 +24,4 @@ for job in bronze silver gold check; do
   echo "== vn30_$job"
   "$PY" "$HERE/spark/vn30_$job.py"
 done
-if [ -d "$DATA/delta" ]; then
-  echo "== parity vs. the single-machine Delta tables"
-  "$PY" "$HERE/tests/parity_silver.py" "$OUT" "$DATA/delta"
-else
-  echo "(no delta/ in the data root: parity check skipped)"
-fi
 echo "LOCAL TEST OK -> $OUT"

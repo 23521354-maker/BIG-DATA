@@ -29,3 +29,8 @@ vn30out/
 spark-warehouse/
 metastore_db/
 derby.log
+
+# data packs (shared via Drive, see DATA.md)
+*.zip
+*.rar
+*.7z

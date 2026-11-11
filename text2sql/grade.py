@@ -1,6 +1,6 @@
-"""Result comparison used by eval_t2s.py, app.py and regrade.py (row order ignored; numbers equal within rounding tolerance)."""
+"""Result comparison used by eval_t2s.py and app.py (row order ignored; numbers equal within rounding tolerance)."""
 from decimal import Decimal
-TOL = 0.0051   # 2-decimal rounding can differ by 0.005 between engines (e.g. DuckDB ROUND vs Python round)
+TOL = 0.0051   # 2-decimal rounding can differ by 0.005 (SQL ROUND vs Python round)
 def _num(v): return isinstance(v, (int, float, Decimal)) and not isinstance(v, bool)
 def eq(a, b):
     if a is None or b is None: return a is None and b is None

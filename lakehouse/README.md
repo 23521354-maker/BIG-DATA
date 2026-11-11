@@ -23,7 +23,7 @@ Text-to-SQL (Streamlit, engine "Trino") | dashboard
 ```
 
 Airflow DAG `vn30_pipeline`: `vn30_bronze >> vn30_silver >> vn30_gold >> vn30_check >> verify_with_trino`.
-`vn30_check` fails the run if any row count differs from the single-machine baseline.
+`vn30_check` fails the run if any row count differs from the expected baseline.
 
 ## Run order (PowerShell, in this folder)
 
@@ -40,9 +40,8 @@ Airflow DAG `vn30_pipeline`: `vn30_bronze >> vn30_silver >> vn30_gold >> vn30_ch
 ```
 
 Text-to-SQL on Trino: `pip install trino`, run `.\scripts\ops\port-forward.ps1 trino` in a second window, then
-`python text2sql\eval_t2s.py --backend openai --model deepseek-flash --engine trino --set golden.json`
-or pick "Trino (lakehouse on MinIO)" in the Streamlit sidebar. Gold answers always come from the DuckDB reference
-(same data, verified cell by cell).
+`python text2sql\eval_t2s.py --backend openai --model deepseek-flash --set golden.json`
+or start the Streamlit UI (`text2sql\app.py`). Expected answers are frozen in `golden*.json` (field `gold`).
 
 ## Tests (no cluster needed)
 
@@ -51,7 +50,6 @@ The jobs also run locally when `VN30_LOCAL_OUT` is set (plain parquet instead of
 ```bash
 export VN30_SRC=file:///path/to/BIG_DATA VN30_LOCAL_OUT=/tmp/vn30out
 python spark/vn30_bronze.py && python spark/vn30_silver.py && python spark/vn30_gold.py && python spark/vn30_check.py
-python tests/parity_silver.py /tmp/vn30out /path/to/BIG_DATA/delta     # every cell equals the old Delta tables
 ```
 
-Result of the last local run: `parity_silver.py` reports 0 differing cells in the 4 Silver tables.
+or in one step: `bash tests/run_local_test.sh /path/to/BIG_DATA`. Expected last line: `CHECK PASSED`.

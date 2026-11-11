@@ -2,117 +2,445 @@
  {
   "id": 1,
   "q": "VCB lãi bao nhiêu năm 2023?",
-  "sql": "SELECT value_bn_vnd FROM financial_indicators WHERE ticker='VCB' AND fiscal_year=2023 AND metric='net_profit_after_tax'"
+  "sql": "SELECT value_bn_vnd FROM financial_indicators WHERE ticker='VCB' AND fiscal_year=2023 AND metric='net_profit_after_tax'",
+  "gold": [
+   [
+    33054.448
+   ]
+  ]
  },
  {
   "id": 2,
   "q": "Ngân hàng nào có thu nhập lãi thuần tăng mạnh nhất từ 2022 đến 2024 (tính theo %)?",
-  "sql": "SELECT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric WHERE a.metric='net_interest_income' AND a.fiscal_year=2024 AND b.fiscal_year=2022 ORDER BY a.value_bn_vnd/b.value_bn_vnd DESC LIMIT 1"
+  "sql": "SELECT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric WHERE a.metric='net_interest_income' AND a.fiscal_year=2024 AND b.fiscal_year=2022 ORDER BY a.value_bn_vnd/b.value_bn_vnd DESC LIMIT 1",
+  "gold": [
+   [
+    "HDB"
+   ]
+  ]
  },
  {
   "id": 3,
   "q": "Có bao nhiêu công ty có ROE trên 15% trong năm 2022?",
-  "sql": "SELECT COUNT(*) FROM financial_indicators WHERE metric='roe' AND fiscal_year=2022 AND value>15"
+  "sql": "SELECT COUNT(*) FROM financial_indicators WHERE metric='roe' AND fiscal_year=2022 AND value>15",
+  "gold": [
+   [
+    19
+   ]
+  ]
  },
  {
   "id": 4,
   "q": "ROA trung bình của nhóm ngân hàng năm 2023",
-  "sql": "SELECT AVG(f.value) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roa' AND f.fiscal_year=2023"
+  "sql": "SELECT AVG(f.value) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roa' AND f.fiscal_year=2023",
+  "gold": [
+   [
+    1.6885714285714286
+   ]
+  ]
  },
  {
   "id": 5,
   "q": "Doanh nghiệp nào có tổng tài sản vượt 500.000 tỷ đồng năm 2024?",
-  "sql": "SELECT ticker FROM financial_indicators WHERE metric='total_assets' AND fiscal_year=2024 AND value_bn_vnd>500000"
+  "sql": "SELECT ticker FROM financial_indicators WHERE metric='total_assets' AND fiscal_year=2024 AND value_bn_vnd>500000",
+  "gold": [
+   [
+    "ACB"
+   ],
+   [
+    "BID"
+   ],
+   [
+    "CTG"
+   ],
+   [
+    "HDB"
+   ],
+   [
+    "LPB"
+   ],
+   [
+    "MBB"
+   ],
+   [
+    "SHB"
+   ],
+   [
+    "STB"
+   ],
+   [
+    "TCB"
+   ],
+   [
+    "VCB"
+   ],
+   [
+    "VHM"
+   ],
+   [
+    "VIC"
+   ],
+   [
+    "VPB"
+   ]
+  ]
  },
  {
   "id": 6,
   "q": "Liệt kê vốn chủ sở hữu của FPT từ 2020 đến 2025",
-  "sql": "SELECT fiscal_year, value_bn_vnd FROM financial_indicators WHERE ticker='FPT' AND metric='equity' ORDER BY fiscal_year"
+  "sql": "SELECT fiscal_year, value_bn_vnd FROM financial_indicators WHERE ticker='FPT' AND metric='equity' ORDER BY fiscal_year",
+  "gold": [
+   [
+    2020,
+    18605.667400728
+   ],
+   [
+    2021,
+    21417.985230037
+   ],
+   [
+    2022,
+    25356.124687812
+   ],
+   [
+    2023,
+    29933.011216233
+   ],
+   [
+    2024,
+    35724.7901048
+   ],
+   [
+    2025,
+    43748.040747539
+   ]
+  ]
  },
  {
   "id": 7,
   "q": "Công ty nào có lợi nhuận sau thuế năm 2025 thấp hơn năm 2024?",
-  "sql": "SELECT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric AND b.fiscal_year=2024 WHERE a.metric='net_profit_after_tax' AND a.fiscal_year=2025 AND a.value_bn_vnd<b.value_bn_vnd"
+  "sql": "SELECT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric AND b.fiscal_year=2024 WHERE a.metric='net_profit_after_tax' AND a.fiscal_year=2025 AND a.value_bn_vnd<b.value_bn_vnd",
+  "gold": [
+   [
+    "ACB"
+   ],
+   [
+    "PLX"
+   ],
+   [
+    "STB"
+   ],
+   [
+    "VNM"
+   ]
+  ]
  },
  {
   "id": 8,
   "q": "Tổng doanh thu thuần của ngành Materials năm 2023",
-  "sql": "SELECT SUM(f.value_bn_vnd) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.sector='Materials' AND f.metric='net_revenue' AND f.fiscal_year=2023"
+  "sql": "SELECT SUM(f.value_bn_vnd) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.sector='Materials' AND f.metric='net_revenue' AND f.fiscal_year=2023",
+  "gold": [
+   [
+    150839.41791035898
+   ]
+  ]
  },
  {
   "id": 9,
   "q": "Cho biết tên công ty và ngành của mã MWG",
-  "sql": "SELECT company_name, sector FROM companies WHERE ticker='MWG'"
+  "sql": "SELECT company_name, sector FROM companies WHERE ticker='MWG'",
+  "gold": [
+   [
+    "Mobile World Group",
+    "Retail"
+   ]
+  ]
  },
  {
   "id": 10,
   "q": "Có bao nhiêu mã có ít nhất một giá trị lấy từ CafeF?",
-  "sql": "SELECT COUNT(DISTINCT ticker) FROM financial_indicators WHERE source='cafef'"
+  "sql": "SELECT COUNT(DISTINCT ticker) FROM financial_indicators WHERE source='cafef'",
+  "gold": [
+   [
+    30
+   ]
+  ]
  },
  {
   "id": 11,
   "q": "Những ngân hàng nào chưa có dữ liệu tỷ lệ nợ xấu (NPL) năm 2021?",
-  "sql": "SELECT ticker FROM companies WHERE is_bank AND ticker NOT IN (SELECT ticker FROM financial_indicators WHERE metric='npl_ratio' AND fiscal_year=2021)"
+  "sql": "SELECT ticker FROM companies WHERE is_bank AND ticker NOT IN (SELECT ticker FROM financial_indicators WHERE metric='npl_ratio' AND fiscal_year=2021)",
+  "gold": [
+   [
+    "BID"
+   ],
+   [
+    "SHB"
+   ],
+   [
+    "SSB"
+   ],
+   [
+    "STB"
+   ],
+   [
+    "TPB"
+   ]
+  ]
  },
  {
   "id": 12,
   "q": "ROE trung bình các năm của từng ngân hàng, xếp từ cao xuống thấp",
-  "sql": "SELECT f.ticker, AVG(f.value) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roe' GROUP BY f.ticker ORDER BY 2 DESC"
+  "sql": "SELECT f.ticker, AVG(f.value) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roe' GROUP BY f.ticker ORDER BY 2 DESC",
+  "gold": [
+   [
+    "VIB",
+    24.84
+   ],
+   [
+    "HDB",
+    23.38
+   ],
+   [
+    "ACB",
+    23.136666666666667
+   ],
+   [
+    "MBB",
+    22.093333333333334
+   ],
+   [
+    "VCB",
+    20.768333333333334
+   ],
+   [
+    "LPB",
+    20.528333333333332
+   ],
+   [
+    "TPB",
+    18.96
+   ],
+   [
+    "TCB",
+    17.845
+   ],
+   [
+    "CTG",
+    17.618333333333332
+   ],
+   [
+    "SHB",
+    16.786666666666665
+   ],
+   [
+    "BID",
+    16.563333333333333
+   ],
+   [
+    "VPB",
+    15.278333333333336
+   ],
+   [
+    "SSB",
+    14.416666666666666
+   ],
+   [
+    "STB",
+    13.758333333333333
+   ]
+  ]
  },
  {
   "id": 13,
   "q": "Which bank had the highest equity in 2023?",
-  "sql": "SELECT f.ticker FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='equity' AND f.fiscal_year=2023 ORDER BY f.value_bn_vnd DESC LIMIT 1"
+  "sql": "SELECT f.ticker FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='equity' AND f.fiscal_year=2023 ORDER BY f.value_bn_vnd DESC LIMIT 1",
+  "gold": [
+   [
+    "VCB"
+   ]
+  ]
  },
  {
   "id": 14,
   "q": "5 đoạn đầu tiên (theo số trang) trong báo cáo VCB năm 2023 có nhắc đến nợ xấu",
-  "sql": "SELECT chunk_id FROM text_chunks WHERE ticker='VCB' AND fiscal_year=2023 AND text ILIKE '%nợ xấu%' ORDER BY page, chunk_index LIMIT 5"
+  "sql": "SELECT chunk_id FROM text_chunks WHERE ticker='VCB' AND fiscal_year=2023 AND text ILIKE '%nợ xấu%' ORDER BY page, chunk_index LIMIT 5",
+  "gold": [
+   [
+    "VCB_2023_p0005_c01"
+   ],
+   [
+    "VCB_2023_p0016_c00"
+   ],
+   [
+    "VCB_2023_p0016_c01"
+   ],
+   [
+    "VCB_2023_p0019_c00"
+   ],
+   [
+    "VCB_2023_p0028_c00"
+   ]
+  ]
  },
  {
   "id": 15,
   "q": "Tổng tài sản của VCB và BID theo từng năm, mỗi năm một dòng",
-  "sql": "SELECT fiscal_year, MAX(CASE WHEN ticker='VCB' THEN value_bn_vnd END), MAX(CASE WHEN ticker='BID' THEN value_bn_vnd END) FROM financial_indicators WHERE metric='total_assets' AND ticker IN ('VCB','BID') GROUP BY fiscal_year ORDER BY fiscal_year"
+  "sql": "SELECT fiscal_year, MAX(CASE WHEN ticker='VCB' THEN value_bn_vnd END), MAX(CASE WHEN ticker='BID' THEN value_bn_vnd END) FROM financial_indicators WHERE metric='total_assets' AND ticker IN ('VCB','BID') GROUP BY fiscal_year ORDER BY fiscal_year",
+  "gold": [
+   [
+    2020,
+    1326230.092,
+    1516685.712
+   ],
+   [
+    2021,
+    1414672.587,
+    1761695.79
+   ],
+   [
+    2022,
+    1813815.17,
+    2120609.38
+   ],
+   [
+    2023,
+    1839613.198,
+    2300868.728
+   ],
+   [
+    2024,
+    2085873.522,
+    2760791.85
+   ],
+   [
+    2025,
+    2442279.166,
+    3330826.0
+   ]
+  ]
  },
  {
   "id": 16,
   "q": "Chỉ tiêu nào có nhiều bản ghi cần xem lại nhất?",
-  "sql": "SELECT metric FROM financial_indicators WHERE needs_review GROUP BY metric ORDER BY COUNT(*) DESC LIMIT 1"
+  "sql": "SELECT metric FROM financial_indicators WHERE needs_review GROUP BY metric ORDER BY COUNT(*) DESC LIMIT 1",
+  "gold": [
+   [
+    "dividend"
+   ]
+  ]
  },
  {
   "id": 17,
   "q": "Tổng tài sản của HPG năm 2025 gấp bao nhiêu lần năm 2021?",
-  "sql": "SELECT a.value_bn_vnd/b.value_bn_vnd FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric WHERE a.ticker='HPG' AND a.metric='total_assets' AND a.fiscal_year=2025 AND b.fiscal_year=2021"
+  "sql": "SELECT a.value_bn_vnd/b.value_bn_vnd FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.metric=b.metric WHERE a.ticker='HPG' AND a.metric='total_assets' AND a.fiscal_year=2025 AND b.fiscal_year=2021",
+  "gold": [
+   [
+    1.4469500532230086
+   ]
+  ]
  },
  {
   "id": 18,
   "q": "Biên lợi nhuận ròng của VNM từ 2022 đến 2024 theo từng năm (%)",
-  "sql": "SELECT n.fiscal_year, n.value_bn_vnd/r.value_bn_vnd*100 FROM financial_indicators n JOIN financial_indicators r ON n.ticker=r.ticker AND n.fiscal_year=r.fiscal_year WHERE n.ticker='VNM' AND n.metric='net_profit_after_tax' AND r.metric='net_revenue' AND n.fiscal_year BETWEEN 2022 AND 2024 ORDER BY 1"
+  "sql": "SELECT n.fiscal_year, n.value_bn_vnd/r.value_bn_vnd*100 FROM financial_indicators n JOIN financial_indicators r ON n.ticker=r.ticker AND n.fiscal_year=r.fiscal_year WHERE n.ticker='VNM' AND n.metric='net_profit_after_tax' AND r.metric='net_revenue' AND n.fiscal_year BETWEEN 2022 AND 2024 ORDER BY 1",
+  "gold": [
+   [
+    2022,
+    14.306391278067501
+   ],
+   [
+    2023,
+    14.94039455343886
+   ],
+   [
+    2024,
+    15.30042191483979
+   ]
+  ]
  },
  {
   "id": 19,
   "q": "Mỗi năm, công ty nào có lợi nhuận sau thuế cao nhất?",
-  "sql": "SELECT fiscal_year, ticker FROM (SELECT fiscal_year, ticker, ROW_NUMBER() OVER (PARTITION BY fiscal_year ORDER BY value_bn_vnd DESC) rn FROM financial_indicators WHERE metric='net_profit_after_tax') WHERE rn=1 ORDER BY 1"
+  "sql": "SELECT fiscal_year, ticker FROM (SELECT fiscal_year, ticker, ROW_NUMBER() OVER (PARTITION BY fiscal_year ORDER BY value_bn_vnd DESC) rn FROM financial_indicators WHERE metric='net_profit_after_tax') WHERE rn=1 ORDER BY 1",
+  "gold": [
+   [
+    2020,
+    "VHM"
+   ],
+   [
+    2021,
+    "VHM"
+   ],
+   [
+    2022,
+    "VCB"
+   ],
+   [
+    2023,
+    "VHM"
+   ],
+   [
+    2024,
+    "VHM"
+   ],
+   [
+    2025,
+    "VHM"
+   ]
+  ]
  },
  {
   "id": 20,
   "q": "Techcombank có tổng tài sản bao nhiêu năm 2024?",
-  "sql": "SELECT f.value_bn_vnd FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.company_name ILIKE '%Techcombank%' AND f.metric='total_assets' AND f.fiscal_year=2024"
+  "sql": "SELECT f.value_bn_vnd FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.company_name ILIKE '%Techcombank%' AND f.metric='total_assets' AND f.fiscal_year=2024",
+  "gold": [
+   [
+    978798.549
+   ]
+  ]
  },
  {
   "id": 21,
   "q": "Có bao nhiêu ngân hàng có dữ liệu ROE năm 2025?",
-  "sql": "SELECT COUNT(DISTINCT f.ticker) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roe' AND f.fiscal_year=2025"
+  "sql": "SELECT COUNT(DISTINCT f.ticker) FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.is_bank AND f.metric='roe' AND f.fiscal_year=2025",
+  "gold": [
+   [
+    14
+   ]
+  ]
  },
  {
   "id": 22,
   "q": "Lợi nhuận sau thuế năm 2024 của các công ty ngành Energy & Utilities",
-  "sql": "SELECT f.ticker, f.value_bn_vnd FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.sector='Energy & Utilities' AND f.metric='net_profit_after_tax' AND f.fiscal_year=2024"
+  "sql": "SELECT f.ticker, f.value_bn_vnd FROM financial_indicators f JOIN companies c USING(ticker) WHERE c.sector='Energy & Utilities' AND f.metric='net_profit_after_tax' AND f.fiscal_year=2024",
+  "gold": [
+   [
+    "GAS",
+    10590.12
+   ],
+   [
+    "PLX",
+    3161.151940515
+   ],
+   [
+    "POW",
+    1211.341955166
+   ]
+  ]
  },
  {
   "id": 23,
   "q": "Công ty nào có ROA cao hơn ROE trong cùng một năm?",
-  "sql": "SELECT DISTINCT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.fiscal_year=b.fiscal_year WHERE a.metric='roa' AND b.metric='roe' AND a.value>b.value"
+  "sql": "SELECT DISTINCT a.ticker FROM financial_indicators a JOIN financial_indicators b ON a.ticker=b.ticker AND a.fiscal_year=b.fiscal_year WHERE a.metric='roa' AND b.metric='roe' AND a.value>b.value",
+  "gold": [
+   [
+    "VIC"
+   ],
+   [
+    "VJC"
+   ]
+  ]
  },
  {
   "id": 24,

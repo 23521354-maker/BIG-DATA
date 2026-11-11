@@ -30,26 +30,35 @@ The lakehouse starts from `extract/`. See [DATA.md](DATA.md) for what each data 
 | Path | What it is |
 |---|---|
 | `lakehouse/` | The big-data stack: Kubernetes manifests, Spark jobs (`spark/`), Airflow DAG (`airflow/`), PowerShell scripts, tests. Has its own [README](lakehouse/README.md) |
-| `text2sql/` | Text-to-SQL engine (`t2s.py`), Streamlit UI (`app.py`), evaluation (`eval_t2s.py`), test sets (`golden*.json`) and stored results (`eval_*.json`) |
+| `text2sql/` | Text-to-SQL engine (`t2s.py`), Streamlit UI (`app.py`), evaluation (`eval_t2s.py`), test sets with frozen expected answers (`golden*.json`) and stored results (`eval_*.json`) |
 | `download_vn30.py`, `inventory_vn30.py`, `dump_text.py`, `locate_pages.py`, `scan_tess.py`, `ppocr_batch.py`, `extract_indicators.py` | Ingestion / extraction (offline, optional) |
-| `apply_cafef.py`, `derive_ratios.py`, `load_delta.py` | Original single-machine pipeline (Delta Lake). Superseded by the Spark jobs but kept as the **reference** for the parity test and for gold answers in the evaluation |
 | `selected_files.csv`, `missing_files.csv` | The 154 reports that were processed (with SHA-256) and the 38 ticker-years that do not exist at the source |
 | `requirements.txt`, `requirements-ingestion.txt` | Python dependencies (the second one is only for reproducing the extraction) |
 
+## What you need (by level)
+
+| Level | What it runs | Machine | Install |
+|---|---|---|---|
+| 1. Local Spark test | the 4 Spark jobs on plain parquet | any laptop; the reference run completed in about 2 minutes on a VM with only 3 GB RAM and 2 cores | Python 3.10 and Java 11 (the versions it was tested with; Java 17 is also supported by Spark 3.5), `pip install -r requirements.txt`, WSL2 on Windows |
+| 2. Full lakehouse | MinIO, MySQL, Iceberg REST, Spark, Trino, Airflow on Kubernetes | 16 GB RAM is workable, 12 GB is the lowest the setup script accepts (it warns below that), 32 GB is **not** required. Sum of the pod memory limits is about 10-11 GB, so give Docker Desktop 10-12 GB. Use `mode-etl.ps1` (Trino off) while Spark runs and `mode-full.ps1` to query; these two modes exist to save RAM | Windows, Docker Desktop with Kubernetes, kubectl, PowerShell |
+| 3. Text-to-SQL | LLM calls over HTTP, SQL runs on Trino | level 2 must be running (the `oracle` check needs no cluster) | `pip install -r requirements.txt`, your own API key |
+
+Level 2 was run on the author's PC; it has not been tried on a 16 GB machine. Level 1 is the recommended way to check the project.
+
 ## Three ways to try it
 
-You need the **core data pack** ([DATA.md](DATA.md)) unzipped in the repository root: `extract/` and `delta/`.
+You need the **core data pack** ([DATA.md](DATA.md)) unzipped in the repository root (it contains `extract/`).
 
-### 1. Local Spark test, no cluster (about 3 minutes)
+### 1. Local Spark test, no cluster (about 2 minutes)
 
 Linux, macOS or WSL2 with Java 11 or 17.
 
 ```bash
 pip install -r requirements.txt
-bash lakehouse/tests/run_local_test.sh .      # bronze -> silver -> gold -> check -> parity with the Delta reference
+bash lakehouse/tests/run_local_test.sh .      # bronze -> silver -> gold -> check
 ```
 
-Expected last lines: `CHECK PASSED: lakehouse tables match the baseline` and `PARITY OK` (0 differing cells in the 4 Silver tables).
+Expected last line: `CHECK PASSED: lakehouse tables match the baseline` (every table has the expected row count, VCB 2023 net profit = 33,054.448 billion VND).
 This runs the same Spark code, writing plain parquet instead of Iceberg tables. It has not been tried on native Windows (Spark needs `winutils` there) - use WSL2.
 
 ### 2. Full lakehouse on Docker Desktop Kubernetes
@@ -64,30 +73,28 @@ VCB 2023 net profit after tax = 33,054.448 billion VND.
 ```bash
 pip install -r requirements.txt
 cd text2sql
-python eval_t2s.py --backend oracle --set golden.json                                   # no LLM: reference SQL, expect 31/31
-export OPENAI_API_KEY=...                                                               # your own DeepSeek (or OpenAI-compatible) key
-python eval_t2s.py --backend openai --model deepseek-flash --engine duckdb --set golden.json
-python eval_t2s.py --backend openai --model deepseek-flash --engine trino  --set golden.json   # needs the lakehouse + port-forward to Trino
-python -m streamlit run app.py                                                          # UI; type the key in the sidebar
+python eval_t2s.py --backend oracle --set golden.json        # no LLM, no cluster: checks the grader and the question file, expect 31/31
+# the next commands need the lakehouse running and the Trino port-forward open (lakehouse/scripts/ops/port-forward.ps1 trino)
+export OPENAI_API_KEY=...                                    # your own DeepSeek (or OpenAI-compatible) key
+python eval_t2s.py --backend openai --model deepseek-flash --set golden.json
+python -m streamlit run app.py                               # UI; type the key in the sidebar
 ```
 
 On PowerShell set the key with `$env:OPENAI_API_KEY = "..."`. **Never commit a key.** The key is read from the environment or typed in the UI and is not stored anywhere.
-Gold answers are always computed on the DuckDB reference over `delta/`, whichever engine is being tested.
+Every generated SQL query runs on Trino. The expected answers are frozen in `golden*.json` (field `gold`, taken from the verified data; the `sql` field is only the reference query that produced them), so grading needs no second engine.
 
 ## Results
 
-Data (all checked in the Spark jobs by `vn30_check.py` against the single-machine baseline; Silver equals the Delta reference cell by cell).
+Data: `vn30_check.py` compares the row count of every Bronze, Silver and Gold table with the expected baseline and fails the Airflow run on any difference.
+Before the earlier single-machine prototype was removed, the Silver tables were verified against it cell by cell (0 differing cells).
 
-Text-to-SQL, execution accuracy; *strict* = same rows and columns, *lenient* = extra columns allowed.
+Text-to-SQL on Trino, execution accuracy; *strict* = same rows and columns, *lenient* = extra columns allowed.
 
-| Model / engine | Dev set (31 questions) strict / lenient | Held-out set (27 questions) strict / lenient |
+| Model | Dev set (31 questions) strict / lenient | Held-out set (27 questions) strict / lenient |
 |---|---|---|
-| deepseek-flash, DuckDB | 18 / 31 | 16 / 26 |
-| deepseek-flash, **Trino (lakehouse)** | 18 / 31, all 31 SQL executable | not run on Trino |
-| deepseek-v4-pro, DuckDB | 21 / 30 | 17 / 25 |
-| oracle (reference SQL) | 31 / 31 | - |
-
-The held-out set contains 4 unanswerable questions, all declined correctly by deepseek-flash.
+| deepseek-flash | 18 / 31 (all 31 SQL executable) | 17 / 27 (the 4 unanswerable questions are all declined) |
+| deepseek-v4-pro | 23 / 30 (all 31 SQL executable) | 16 / 27 (the 4 unanswerable questions are all declined) |
+| oracle (reference SQL) | 31 / 31 | 27 / 27 |
 
 ## Known limitations
 

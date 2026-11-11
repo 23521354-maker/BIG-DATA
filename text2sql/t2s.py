@@ -1,11 +1,10 @@
-"""Text-to-SQL over the VN30 tables. Engines: duckdb (local Delta files, default) | trino (lakehouse: Iceberg on MinIO, schema vn30_silver).
+"""Text-to-SQL over the VN30 tables on the lakehouse: Trino -> Iceberg tables on MinIO (catalog iceberg, schema vn30_silver).
+Needs the cluster running and the Trino port-forward (lakehouse/scripts/ops/port-forward.ps1 trino). Host/port: T2S_TRINO_HOST / T2S_TRINO_PORT.
   python t2s.py "Lợi nhuận sau thuế của VCB năm 2024?" --backend ollama --model qwen2.5-coder:7b
 Backends: ollama (http://localhost:11434) | openai (OPENAI_BASE_URL, OPENAI_API_KEY; DeepSeek/OpenAI-compatible) | rules (no LLM)
 """
 import os, re, sys, json, argparse, urllib.request
-import duckdb
-from deltalake import DeltaTable
-HERE = os.path.dirname(os.path.abspath(__file__)); DELTA = os.environ.get("VN30_DELTA", os.path.join(os.path.dirname(HERE), "delta"))
+HERE = os.path.dirname(os.path.abspath(__file__))
 TABLES = ("financial_indicators", "text_chunks", "companies", "metric_catalog")
 
 class _TrinoResult:
@@ -13,7 +12,7 @@ class _TrinoResult:
     def fetchall(self): return self._rows
 
 class TrinoConn:
-    """Minimal DuckDB-like wrapper: execute(sql) -> object with .description and .fetchall(). Read-only use only (the validator in ask() allows SELECT/WITH)."""
+    """Minimal DB-API-like wrapper: execute(sql) -> object with .description and .fetchall(). Read-only use only (the validator in ask() allows SELECT/WITH)."""
     dialect = "trino"
     def __init__(self, host=None, port=None, user="admin", catalog="iceberg", schema="vn30_silver"):
         import trino
@@ -25,23 +24,15 @@ class TrinoConn:
 
 def connect_trino(): return TrinoConn()
 
-def connect(engine=None):
-    engine = engine or os.environ.get("T2S_ENGINE", "duckdb")
-    if engine == "trino": return connect_trino()
-    con = duckdb.connect()
-    for t in TABLES: con.register(t, DeltaTable(os.path.join(DELTA, t)).to_pyarrow_table())
-    con.execute("SET enable_external_access=false")
-    return con
+def connect(): return connect_trino()
 
 def system_prompt(con):
-    trino = getattr(con, "dialect", "duckdb") == "trino"
-    eng = "Trino" if trino else "DuckDB"
-    search = "lower(text) LIKE '%keyword%' with a lower-case keyword" if trino else "text ILIKE '%keyword%'"
+    search = "lower(text) LIKE '%keyword%' with a lower-case keyword"
     notes = ("TRINO SQL NOTES: no ILIKE (use lower(col) LIKE ...) and no :: casts (use CAST(x AS type)); dividing two integers truncates, so CAST(x AS DOUBLE) first; "
-             "tables are already in the default schema, never prefix a table name.\n") if trino else ""
+             "tables are already in the default schema, never prefix a table name.\n")
     mc = con.execute("select metric, name_vi, unit, applies_to from metric_catalog").fetchall()
     co = con.execute("select ticker, company_name, sector, is_bank from companies order by 1").fetchall()
-    return f"""You translate Vietnamese or English questions about VN30 annual-report indicators into ONE {eng} SQL query. Output only the SQL.
+    return f"""You translate Vietnamese or English questions about VN30 annual-report indicators into ONE Trino SQL query. Output only the SQL.
 TABLES
 financial_indicators(ticker, fiscal_year INT, metric, value, unit, value_bn_vnd, value_vnd, scope, source_page, method, source, confidence, needs_review BOOL, value_prior, cross_year_ok, swapped, conflict, value_extracted, cafef_value, cafef_status, cafef_url, yoy_flag, raw_row)
   one row per (ticker, fiscal_year, metric); fiscal_year 2020-2025. source: 'bctn' (extracted from annual report), 'cafef' (verified from CafeF), 'derived' (ROE/ROA computed).
