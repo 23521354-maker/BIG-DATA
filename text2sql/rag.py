@@ -4,7 +4,7 @@ Retrieval: keyword scoring done in SQL on Trino. Then an LLM answers from the re
 Ask from the command line (needs the Trino port-forward and an API key):
     python rag.py ask "VCB định hướng chiến lược gì năm 2023?" --backend openai --llm deepseek-flash
 """
-import os, re, sys, argparse, unicodedata
+import os, re, sys, json, argparse, unicodedata
 import t2s
 
 COLS = "chunk_id, ticker, fiscal_year, page, text"
@@ -82,21 +82,37 @@ def answer(q, hits, backend, model):
     return t2s.llm(backend, model, SYS, user), (len(SYS) + len(user)) // 3
 
 
-ROUTE_SYS = ("Classify a question about Vietnamese listed companies. Reply with exactly one word. "
-             "SQL = it asks for numbers that sit in a financial-indicators table (revenue, profit, assets, equity, ROE, ROA, NPL, loans, deposits, dividends, EPS, employees, rankings, top-N, trends). "
-             "TEXT = it asks about narrative content of the annual report (strategy, risks, plans, explanations, events, policies, people). "
-             "BOTH = it needs a number and an explanation from the text.")
+PLAN_SYS = ("You route and split questions about Vietnamese listed companies. Reply with ONE line of JSON only, no other text: "
+            '{"route": "SQL" | "TEXT" | "BOTH", "sql": "...", "text": "..."}. '
+            "SQL = asks for numbers that sit in a financial-indicators table (revenue, profit, assets, equity, ROE, ROA, NPL, loans, deposits, dividends, EPS, employees, rankings, top-N, trends). "
+            "TEXT = asks about narrative content of the annual report (strategy, risks, plans, explanations, events, policies, people). "
+            "BOTH = needs a number and an explanation from the text. "
+            "Put the numeric part in \"sql\" and the narrative part in \"text\", each rewritten as a complete standalone question that keeps the company, the year and the metric "
+            "(resolve words like 'that result' into what they refer to). For SQL or TEXT questions copy the whole question into the matching field and leave the other empty.")
 
 def route_heuristic(q):
     ql = nfc(q).lower()
     return "SQL" if any(p in ql for ps in t2s.SYN.values() for p in ps) else "TEXT"
 
-def route(q, backend, model):
-    """-> 'SQL' | 'TEXT' | 'BOTH'. One tiny LLM call (about 150 tokens); falls back to keyword rules when there is no LLM or it fails."""
-    if backend == "rules": return route_heuristic(q)
-    try: out = t2s.llm(backend, model, ROUTE_SYS, q).strip().upper()
-    except Exception: return route_heuristic(q)
-    return "BOTH" if "BOTH" in out else "TEXT" if "TEXT" in out else "SQL" if "SQL" in out else route_heuristic(q)
+def plan(q, backend, model):
+    """-> (route, sql_question, text_question). route is 'SQL' | 'TEXT' | 'BOTH'. For BOTH the question is split so the SQL model only sees the numeric part
+    (otherwise it tries to answer the narrative part by joining text_chunks and returns duplicated rows). One tiny LLM call; falls back to keyword rules."""
+    def fallback():
+        r = route_heuristic(q); return r, (q if r != "TEXT" else ""), (q if r != "SQL" else "")
+    if backend == "rules": return fallback()
+    try:
+        raw = t2s.llm(backend, model, PLAN_SYS, q)
+        d = json.loads(re.search(r"\{.*\}", raw, re.S).group(0))
+        r, sq, tq = str(d.get("route", "")).strip().upper(), str(d.get("sql") or "").strip(), str(d.get("text") or "").strip()
+    except Exception:
+        return fallback()
+    if r not in ("SQL", "TEXT", "BOTH"): return fallback()
+    if r == "SQL": return r, sq or q, ""
+    if r == "TEXT": return r, "", tq or q
+    if not sq and not tq: return fallback()
+    if not sq: return "TEXT", "", tq
+    if not tq: return "SQL", sq, ""
+    return r, sq, tq
 
 
 def companies(con):

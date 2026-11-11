@@ -81,9 +81,11 @@ python -m streamlit run app.py                               # UI; type the key 
 ```
 
 On PowerShell set the key with `$env:OPENAI_API_KEY = "..."`. **Never commit a key.** The key is read from the environment or typed in the UI and is not stored anywhere.
+
+**Default key (optional).** Copy `text2sql/.env.example` to `text2sql/.env` and put your key after `OPENAI_API_KEY=`. It is used whenever the sidebar key box is empty (clear the box to go back to it) and by `eval_t2s.py`. `.env` is git-ignored. On Windows, `lakehouse/START.bat` starts the whole stack **and** opens the UI at http://localhost:8501; `lakehouse/STOP.bat` stops everything again.
 Every generated SQL query runs on Trino. The expected answers are frozen in `golden*.json` (field `gold`, taken from the verified data; the `sql` field is only the reference query that produced them), so grading needs no second engine.
 
-**The Ask tab answers both kinds of questions.** Each question is routed automatically: numbers go through Text-to-SQL on Trino (result shown with a chart and CSV download); questions about what the reports *say* (strategy, risks, plans) are answered from excerpts found in `text_chunks` by keyword search, with page citations such as `[VCB 2023 p.13]`; a question that needs both runs both. Nothing extra to install. `python rag.py ask "..."` runs the text part from the command line.
+**The Ask tab answers both kinds of questions.** Each question is routed automatically: numbers go through Text-to-SQL on Trino (result shown with a chart and CSV download); questions about what the reports *say* (strategy, risks, plans) are answered from excerpts found in `text_chunks` by keyword search, with page citations such as `[VCB 2023 p.13]`; a question that needs both is split first (the SQL model only sees the numeric part) and both parts run. Nothing extra to install. `python rag.py ask "..."` runs the text part from the command line.
 
 ## Results
 

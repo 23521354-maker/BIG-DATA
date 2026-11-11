@@ -19,7 +19,7 @@ function Test-Port([int]$Port) {
     catch { return $false }
 }
 
-Write-Host "[1/4] Kiem tra Docker Desktop + Kubernetes" -ForegroundColor Cyan
+Write-Host "[1/5] Kiem tra Docker Desktop + Kubernetes" -ForegroundColor Cyan
 if (-not (Test-Cluster)) {
     $dd = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
     if (Test-Path -LiteralPath $dd) {
@@ -39,10 +39,10 @@ if (-not (Test-Cluster)) {
 }
 kubectl config use-context docker-desktop | Out-Null
 
-Write-Host "[2/4] Bat tat ca dich vu (3-6 phut neu moi mo may)" -ForegroundColor Cyan
+Write-Host "[2/5] Bat tat ca dich vu (3-6 phut neu moi mo may)" -ForegroundColor Cyan
 & (Join-Path $root "scripts\ops\mode-full.ps1")
 
-Write-Host "[3/4] Mo cac cong (port-forward) trong cua so thu nho" -ForegroundColor Cyan
+Write-Host "[3/5] Mo cac cong (port-forward) trong cua so thu nho" -ForegroundColor Cyan
 $pf = Join-Path $root "scripts\ops\port-forward.ps1"
 $services = @(
     @{ Name = "minio";    Deploy = "minio";        Port = 9001; Path = "" },
@@ -66,7 +66,7 @@ foreach ($s in $services) {
     $opened += $s
 }
 
-Write-Host "[4/4] Mo giao dien tren trinh duyet (cho toi da 2 phut)" -ForegroundColor Cyan
+Write-Host "[4/5] Mo giao dien tren trinh duyet (cho toi da 2 phut)" -ForegroundColor Cyan
 # Wait for all ports together (not 40 s each one after another); open each UI as soon as its port answers.
 $pending = [System.Collections.ArrayList]@($opened)
 $until = (Get-Date).AddSeconds(120)
@@ -88,8 +88,41 @@ foreach ($s in $pending) {
 }
 if ($pending.Count -gt 0) { Write-Host "  Chup man hinh phan loi tren de kiem tra, hoac chay lai START.bat." -ForegroundColor Yellow }
 
+Write-Host "[5/5] Mo giao dien hoi dap (Streamlit)" -ForegroundColor Cyan
+$uiDir = Join-Path (Split-Path -Parent $root) "text2sql"
+if (-not (Test-Path -LiteralPath (Join-Path $uiDir "app.py"))) {
+    Write-Host "  bo qua: khong thay text2sql\app.py canh thu muc lakehouse" -ForegroundColor Yellow
+}
+else {
+    $uiOk = $false
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        python -c "import streamlit, trino, pandas" 2>$null
+        $uiOk = ($LASTEXITCODE -eq 0)
+    }
+    if (-not $uiOk) {
+        Write-Host "  bo qua giao dien: chua cai Python hoac thieu thu vien. Chay 'pip install -r requirements.txt' o thu muc goc roi START.bat lai." -ForegroundColor Yellow
+    }
+    else {
+        if (-not (Test-Port 8501)) {
+            # the UI talks to Trino through the 8080 port-forward: wait for it (max 60 s) before starting
+            for ($i = 0; $i -lt 30 -and -not (Test-Port 8080); $i++) { Start-Sleep -Seconds 2 }
+            # the folder path contains a space, so it is single-quoted inside the command string
+            Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Set-Location -LiteralPath '$uiDir'; python -m streamlit run app.py --server.headless true`""
+            for ($i = 0; $i -lt 30 -and -not (Test-Port 8501); $i++) { Start-Sleep -Seconds 1 }
+        }
+        if (Test-Port 8501) {
+            Start-Process "http://localhost:8501"
+            Write-Host "  giao dien  http://localhost:8501" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  Streamlit chua mo duoc cong 8501. De xem loi, chay: cd text2sql roi python -m streamlit run app.py" -ForegroundColor Yellow
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "LAKEHOUSE DA SAN SANG" -ForegroundColor Green
 Write-Host "  MinIO    admin / password123     Airflow  admin / admin"
 Write-Host "  Superset admin / admin           Trino    user: admin (khong mat khau)"
+Write-Host "  Giao dien hoi dap: http://localhost:8501 (key API: dan o o ben trai trang, hoac dat san trong text2sql\.env)"
 Write-Host "Cac cua so PowerShell thu nho dang giu ket noi: dung dong chung. Tat het: .\scripts\ops\mode-stop.ps1"

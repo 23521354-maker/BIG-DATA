@@ -4,6 +4,11 @@ Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like "*port-forward*" -and $_.ProcessId -ne $PID -and ($_.Name -like "powershell*" -or $_.Name -like "kubectl*") } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
+# Close the Streamlit UI started by START.bat (the minimized PowerShell window and its python process)
+Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*streamlit*" -and $_.CommandLine -like "*app.py*" -and $_.ProcessId -ne $PID } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
 # Scale every Deployment (MySQL, MinIO, Iceberg REST, Spark, Trino, Airflow, Superset) to 0. PVC data is kept.
 kubectl -n lakehouse scale deployment --all --replicas=0
 kubectl -n lakehouse get deployments

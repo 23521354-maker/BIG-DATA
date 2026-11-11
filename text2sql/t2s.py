@@ -5,6 +5,18 @@ Backends: ollama (http://localhost:11434) | openai (OPENAI_BASE_URL, OPENAI_API_
 """
 import os, re, sys, json, argparse, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_env(path=None):
+    """Read KEY=VALUE lines from text2sql/.env (git-ignored) into os.environ. Variables that are already set win; empty values are skipped."""
+    p = path or os.environ.get("T2S_ENV_FILE") or os.path.join(HERE, ".env")
+    if not os.path.exists(p): return
+    for line in open(p, encoding="utf-8-sig"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line: continue
+        k, v = line.split("=", 1); k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and v and k not in os.environ: os.environ[k] = v
+load_env()
 TABLES = ("financial_indicators", "text_chunks", "companies", "metric_catalog")
 
 class _TrinoResult:

@@ -16,6 +16,12 @@ def new_con():
     return t2s.connect()
 
 @st.cache_resource(show_spinner=False)
+def default_key():
+    """the key from the shell or text2sql/.env, captured once before anything typed in the sidebar can overwrite it"""
+    return os.environ.get("OPENAI_API_KEY", "")
+DEFAULT_KEY = default_key()
+
+@st.cache_resource(show_spinner=False)
 def get_system():
     return t2s.system_prompt(new_con())
 
@@ -73,13 +79,16 @@ else:
     model = "rules"
 if backend == "openai":
     base = st.sidebar.text_input("Base URL", os.environ.get("OPENAI_BASE_URL", "https://api.deepseek.com/v1"))
-    key = st.sidebar.text_input("API key", type="password", value="", placeholder="(uses OPENAI_API_KEY env if empty)")
+    key = st.sidebar.text_input("API key", type="password", value="", placeholder="(empty = default key from .env)" if DEFAULT_KEY else "(or put it in text2sql/.env)")
     os.environ["OPENAI_BASE_URL"] = base
-    if key: os.environ["OPENAI_API_KEY"] = key
-    if not os.environ.get("OPENAI_API_KEY"): st.sidebar.warning("No API key set — type it above or set OPENAI_API_KEY.")
+    if key: os.environ["OPENAI_API_KEY"] = key                              # a typed key replaces the default for this session ...
+    elif DEFAULT_KEY: os.environ["OPENAI_API_KEY"] = DEFAULT_KEY            # ... and clearing the box rolls back to the default
+    else: os.environ.pop("OPENAI_API_KEY", None)
+    if not os.environ.get("OPENAI_API_KEY"): st.sidebar.warning("No API key set — type it above or put it in text2sql/.env (see .env.example).")
+    elif not key: st.sidebar.caption("Using the default key from the environment / .env.")
 st.sidebar.caption("Query engine: Trino (lakehouse on MinIO). Needs the cluster running and `lakehouse\\scripts\\ops\\port-forward.ps1 trino`.")
 workers = st.sidebar.slider("Parallel requests (Evaluate tab)", 1, 16, 6)
-st.sidebar.caption("The key lives only in this process' memory; it is never saved to disk.")
+st.sidebar.caption("A key typed here lives only in memory. The default key, if any, comes from text2sql/.env (git-ignored).")
 
 try:
     new_con().execute("SELECT 1").fetchall()

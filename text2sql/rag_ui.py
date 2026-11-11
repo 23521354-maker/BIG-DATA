@@ -28,11 +28,11 @@ def _quality(_new_con):
     return {(t, int(y)): float(s) for t, y, s in _new_con().execute(sql).fetchall()}
 
 
-def _docs_query(new_con, q, k, backend, model):
+def _docs_query(new_con, q, k, backend, model, filter_q=None):
     """retrieve + answer; never raises (errors go into r['error'])"""
     t0, r = time.time(), {"question": q, "answer": None, "tokens": 0, "hits": [], "error": None, "tickers": [], "years": []}
     try:
-        r["tickers"], r["years"] = rag.detect_filters(q, _companies(new_con))
+        r["tickers"], r["years"] = rag.detect_filters(filter_q or q, _companies(new_con))   # filters come from the full original question
         with st.spinner("Searching the reports…"):
             r["hits"] = rag.search(new_con(), q, r["tickers"], r["years"], k)
         if backend != "rules" and r["hits"]:
@@ -78,18 +78,20 @@ def render_chat(new_con, backend, model, sysmsg, show_chart):
     if "chist" not in st.session_state: st.session_state.chist = []
     if st.button("Ask", type="primary", key="cask") and q.strip():
         q, t0, item = q.strip(), time.time(), {"question": q.strip(), "sql": None, "docs": None}
-        with st.spinner("Choosing where to look…"): item["route"] = rag.route(q, backend, model)
+        with st.spinner("Choosing where to look…"): item["route"], q_sql, q_text = rag.plan(q, backend, model)
+        item["split"] = (q_sql, q_text) if item["route"] == "BOTH" else None
         if item["route"] in ("SQL", "BOTH"):
             with st.spinner("Querying the lakehouse…"):
-                try: item["sql"] = t2s.ask(q, new_con(), backend, model, system=sysmsg)
+                try: item["sql"] = t2s.ask(q_sql, new_con(), backend, model, system=sysmsg)
                 except Exception as e: item["sql"] = {"error": f"{type(e).__name__}: {e}", "sql": None}
         if item["route"] in ("TEXT", "BOTH"):
-            item["docs"] = _docs_query(new_con, q, 6, backend, model)
+            item["docs"] = _docs_query(new_con, q_text, 6, backend, model, filter_q=q)
         item["sec"] = round(time.time() - t0, 1)
         st.session_state.chist.insert(0, item)
     for n, it in enumerate(st.session_state.chist[:4]):
         with st.container(border=True):
             st.markdown(f"**{it['question']}**  · route: `{it['route']}` · {it['sec']}s")
+            if it.get("split"): st.caption(f"Split into → numbers: “{it['split'][0]}”  ·  text: “{it['split'][1]}”")
             if it["sql"]:
                 r = it["sql"]
                 if r.get("error"): (st.info if r["error"].startswith("declined") else st.error)(r["error"])
