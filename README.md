@@ -83,6 +83,8 @@ python -m streamlit run app.py                               # UI; type the key 
 On PowerShell set the key with `$env:OPENAI_API_KEY = "..."`. **Never commit a key.** The key is read from the environment or typed in the UI and is not stored anywhere.
 Every generated SQL query runs on Trino. The expected answers are frozen in `golden*.json` (field `gold`, taken from the verified data; the `sql` field is only the reference query that produced them), so grading needs no second engine.
 
+**The Ask tab answers both kinds of questions.** Each question is routed automatically: numbers go through Text-to-SQL on Trino (result shown with a chart and CSV download); questions about what the reports *say* (strategy, risks, plans) are answered from excerpts found in `text_chunks` by keyword search, with page citations such as `[VCB 2023 p.13]`; a question that needs both runs both. Nothing extra to install. `python rag.py ask "..."` runs the text part from the command line.
+
 ## Results
 
 Data: `vn30_check.py` compares the row count of every Bronze, Silver and Gold table with the expected baseline and fails the Airflow run on any difference.
@@ -101,6 +103,7 @@ Text-to-SQL on Trino, execution accuracy; *strict* = same rows and columns, *len
 * The test sets are small and written by the authors. The held-out set was looked at while improving the prompt, so it is **not** an independent test.
 * BVH: total assets and equity for 2021-2024 are missing. BCM and BVH for 2020 could not be cross-checked. 448 Silver rows are flagged `needs_review`.
 * 38 of the 192 ticker-years (32 companies x 6 years) have no PDF at the source. Of the 154 reports processed, 4 produced no text chunks (BID 2021, BVH 2023, STB 2021, STB 2022), so `text_chunks` covers 150 reports.
+* The text of about 30 reports lost many Vietnamese diacritics during extraction (OCR language / PDF font problems; numbers were unaffected). Text questions about those reports are unreliable (the search matches words, not meaning); the Ask tab flags them with a warning.
 * Extraction is rule-based plus OCR; a few values were corrected by hand and are labelled with their source in `financial_indicators.source`.
 * Spark executors are set to 512 MB (Docker Desktop on a laptop); raise it in `lakehouse/scripts/data/run-vn30.ps1` and `airflow/dags/vn30_pipeline.py` if you see out-of-memory errors.
 

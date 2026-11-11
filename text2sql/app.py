@@ -6,18 +6,9 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import t2s, grade
+import t2s, grade, rag_ui
 
 st.set_page_config(page_title="VN30 Text-to-SQL", page_icon="📊", layout="wide")
-
-EXAMPLES = [
-    "Lợi nhuận sau thuế của VCB năm 2023 là bao nhiêu?",
-    "Top 5 công ty có tổng tài sản lớn nhất năm 2024",
-    "ROE trung bình của từng ngân hàng, xếp từ cao xuống thấp",
-    "Liệt kê vốn chủ sở hữu của FPT từ 2020 đến 2025",
-    "Mỗi năm, công ty nào có lợi nhuận sau thuế cao nhất?",
-    "Giá cổ phiếu VNM hôm nay là bao nhiêu?",
-]
 
 # ---------- cached resources ----------
 def new_con():
@@ -98,34 +89,11 @@ except Exception as e:
 sysmsg = None if backend == "rules" else get_system()
 
 st.title("📊 VN30 Annual-Report Financial Indicators — Text-to-SQL")
-tab_ask, tab_eval, tab_data = st.tabs(["💬 Ask", "🧪 Evaluate", "🗂️ Data coverage"])
+tab_chat, tab_eval, tab_data = st.tabs(["💬 Ask", "🧪 Evaluate", "🗂️ Data coverage"])
 
-# ---------- Ask ----------
-with tab_ask:
-    if "q" not in st.session_state: st.session_state.q = ""
-    if "hist" not in st.session_state: st.session_state.hist = []
-    st.caption("Ask in Vietnamese or English. The model writes a read-only SQL query; the result is computed by Trino from the lakehouse tables, not by the model.")
-    cols = st.columns(3)
-    for i, ex in enumerate(EXAMPLES):
-        if cols[i % 3].button(ex, key=f"ex{i}", width="stretch"): st.session_state.q = ex
-    q = st.text_input("Your question", key="q", placeholder="e.g. Ngân hàng nào có ROE cao nhất năm 2024?")
-    chart_mode = st.radio("Chart", ["Auto", "Bar", "Line", "None"], horizontal=True)
-    if st.button("Ask", type="primary") and q.strip():
-        t0 = time.time()
-        with st.spinner("Thinking…"):
-            r = t2s.ask(q.strip(), new_con(), backend, model, system=sysmsg)
-        r["sec"] = round(time.time() - t0, 1); st.session_state.hist.insert(0, r)
-    for n, r in enumerate(st.session_state.hist[:5]):
-        with st.container(border=True):
-            st.markdown(f"**{r['question']}**  · {r['sec']}s · attempts: {r['attempts']}")
-            if r["error"]:
-                (st.info if r["error"].startswith("declined") else st.error)(r["error"])
-            if r["sql"]: st.code(r["sql"], language="sql")
-            if not r["error"]:
-                df = pd.DataFrame(r["rows"], columns=r["cols"])
-                st.dataframe(df, width="stretch", hide_index=True)
-                if n == 0: show_chart(df, chart_mode)
-                st.download_button("Download CSV", df.to_csv(index=False).encode("utf-8-sig"), f"result_{n}.csv", key=f"dl{n}")
+# ---------- Ask (numbers via SQL, report text via search; routed automatically, see rag_ui.py) ----------
+with tab_chat:
+    rag_ui.render_chat(new_con, backend, model, sysmsg, show_chart)
 
 # ---------- Evaluate ----------
 with tab_eval:
